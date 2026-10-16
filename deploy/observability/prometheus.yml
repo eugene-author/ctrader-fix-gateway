@@ -1,0 +1,44 @@
+# Prometheus scrape config for the four processes.
+#
+# The api process serves /metrics on its own app port (8000). The other
+# three have no ASGI app of their own, so they bind a standalone metrics
+# server on METRICS_PORT (default 9100, see app/core/metrics_server.py) -
+# distinct container/host targets in any real deployment, since each is
+# its own process/container, even though they share the same default port
+# number.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - alert_rules.yml
+
+scrape_configs:
+  - job_name: ctrader-fix-gateway-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]
+        labels:
+          service: api
+
+  - job_name: ctrader-fix-gateway-relay
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["relay:9100"]
+        labels:
+          service: relay
+
+  - job_name: ctrader-fix-gateway-projector
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["projector:9100"]
+        labels:
+          service: projector
+
+  - job_name: ctrader-fix-gateway-fix-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["fix-worker:9100"]
+        labels:
+          service: fix-worker

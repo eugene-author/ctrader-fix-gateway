@@ -1,0 +1,11 @@
+services:
+  api:
+    build:
+      target: dev
+    # The read-only-root-filesystem hardening in docker-compose.yml is a
+    # production baseline - the dev target needs a writable
+    # filesystem for `uv run ...` (its cache) and hot-reload.
+    read_only: false
+    volumes:
+      - ./app:/app/app:ro
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

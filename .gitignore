@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+dist/
+build/
+
+# Env and secrets
+.env
+.env.local
+.env.nossl
+config_quote.json
+config_trade.json
+
+# IDE
+.idea/
+
+# Docker
+postgres_data/

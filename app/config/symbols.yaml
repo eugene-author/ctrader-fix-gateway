@@ -1,0 +1,27 @@
+# Per-symbol trading constraints overlay
+#
+# Loaded once at projector startup from SYMBOLS_OVERLAY_PATH
+
+EURUSD:
+  digits: 5
+  lot_size: 100000
+  qty_step: 1000
+  min_qty: 1000
+  max_qty: 10000000
+  price_step: 0.00001
+
+USDJPY:
+  digits: 3
+  lot_size: 100000
+  qty_step: 1000
+  min_qty: 1000
+  max_qty: 10000000
+  price_step: 0.001
+
+XAUUSD:
+  digits: 2
+  lot_size: 100
+  qty_step: 1
+  min_qty: 1
+  max_qty: 10000
+  price_step: 0.01

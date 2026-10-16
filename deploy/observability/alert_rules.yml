@@ -1,0 +1,97 @@
+# Alert rules worth shipping for this service's observability story.
+groups:
+  - name: ctrader-fix-gateway
+    rules:
+      - alert: FixSessionDown
+        expr: fix_session_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FIX {{ $labels.session_type }} session is down"
+          description: >-
+            fix_session_up has been 0 for {{ $labels.session_type }} for at
+            least a minute - no orders or prices can flow until it
+            reconnects.
+
+      - alert: OutboxBacklogGrowing
+        expr: outbox_pending > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outbox backlog exceeds 100 rows"
+          description: >-
+            outbox_pending has stayed above 100 for 5 minutes - the relay
+            may be stalled, or RabbitMQ is unreachable.
+
+      - alert: OrdersFailing
+        expr: increase(orders_failed_total[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Orders are failing"
+          description: >-
+            orders_failed_total increased in the last 5 minutes
+            (reason_code={{ $labels.reason_code }}).
+
+      - alert: CancelDispatchParked
+        expr: increase(cancel_dispatch_parked_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "A cancel request never reached the broker"
+          description: >-
+            cancel_dispatch_parked_total increased in the last 5 minutes - a
+            user asked for a cancel and it was never sent (the outbox relay
+            exhausted its attempts). The order itself is untouched and still
+            live at the broker; this needs a human to check its real state
+            and retry the cancel manually.
+
+      - alert: ProtectionFailing
+        expr: increase(protection_failures_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "A protective order (SL/TP) failed"
+          description: >-
+            protection_failures_total increased in the last 5 minutes
+            (reason={{ $labels.reason }}) - a position may be trading
+            unprotected. PROTECTIVE_FAILURE_POLICY=alert means this alert
+            *is* the mitigation; nothing closes the position automatically.
+
+      - alert: QuoteStale
+        expr: quote_staleness_seconds > 30
+        labels:
+          severity: warning
+        annotations:
+          summary: "Quotes for {{ $labels.symbol }} are stale"
+          description: >-
+            quote_staleness_seconds for {{ $labels.symbol }} has exceeded
+            30s. Scope this alert to market hours in your Alertmanager
+            routing/silences - this rule itself doesn't know a trading
+            calendar.
+
+      - alert: MessageDeadLettered
+        expr: increase(messages_dead_lettered_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "A message was dead-lettered on {{ $labels.queue }}"
+          description: >-
+            messages_dead_lettered_total increased for queue
+            {{ $labels.queue }} - a command or event was dropped after
+            exhausting its redeliveries (or failed to parse/handle
+            outright) and needs manual triage from the DLQ.
+
+      - alert: SymbolBrokerIdChanged
+        expr: increase(symbols_changed_total{kind="id_changed"}[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "A known symbol's broker_symbol_id changed"
+          description: >-
+            The broker reassigned a symbol name to a different
+            broker_symbol_id. The gateway refuses to silently re-point it -
+            the old id stays in effect until this is
+            reviewed and the symbol row is corrected by hand.

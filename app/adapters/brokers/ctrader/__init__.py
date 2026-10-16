@@ -1,0 +1,1 @@
+"""The cTrader FIX adapter."""

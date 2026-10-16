@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Every file the README names in backticks exists
+        run: |
+          missing=$(grep -o '`[A-Za-z0-9_./-]\+\.\(py\|sh\|yml\|yaml\|json\|toml\|ini\|md\)`' README.md \
+            | tr -d '`' | sort -u | while read -r f; do [ -e "$f" ] || echo "$f"; done)
+          if [ -n "$missing" ]; then
+            echo "README references files that don't exist:"
+            echo "$missing"
+            exit 1
+          fi
+      - name: Every relative link in the README resolves
+        run: |
+          broken=$(grep -oE '\]\([^)]+\)' README.md \
+            | sed -E 's/^\]\(//; s/\)$//' \
+            | grep -vE '^(https?|mailto):' \
+            | grep -v '^#' \
+            | sed 's/#.*//' \
+            | sed 's|^\./||' \
+            | sort -u \
+            | while read -r target; do
+                [ -n "$target" ] || continue
+                [ -e "$target" ] || echo "$target"
+              done)
+          if [ -n "$broken" ]; then
+            echo "README links that do not resolve:"
+            echo "$broken"
+            exit 1
+          fi
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+      - run: uv python install 3.14
+      - run: uv sync --frozen
+      - run: uv run ruff check app tests
+      - run: uv run black --check app tests
+      - run: uv run lint-imports
+      - run: uv run mypy app
+
+  unit:
+    runs-on: ubuntu-latest
+    needs: static
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+      - run: uv python install 3.14
+      - run: uv sync --frozen
+      - run: uv run pytest tests/unit tests/contract -v
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: static
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+      - run: uv python install 3.14
+      - run: uv sync --frozen
+      # Docker is preinstalled on GitHub-hosted runners - testcontainers
+      # spins up its own throwaway Postgres/Redis/RabbitMQ per test.
+      - run: uv run pytest tests/integration -v
+
+  audit:
+    runs-on: ubuntu-latest
+    needs: static
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+      - run: uv python install 3.14
+      - run: uv sync --frozen
+      - run: uv run pip-audit --ignore-vuln CVE-2026-106454
+
+  # Proves the schema, the four infrastructure services and the API come up
+  # clean via `docker compose up` alone - the part `docker compose up` can
+  # regress.
+  # The FIX path itself is covered by the integration suite's mock server.
+  compose:
+    runs-on: ubuntu-latest
+    needs: static
+    steps:
+      - uses: actions/checkout@v5
+      - run: cp .env.example .env
+      - run: docker compose up --build -d postgres redis rabbitmq migrate api relay projector
+      - name: Wait for the api to report ready
+        run: |
+          for i in $(seq 1 45); do
+            if curl -sf http://localhost:8000/health/ready; then exit 0; fi
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+      - if: always()
+        run: docker compose down

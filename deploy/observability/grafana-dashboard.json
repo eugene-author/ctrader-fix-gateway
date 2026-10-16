@@ -1,0 +1,160 @@
+{
+  "title": "cTrader FIX Gateway",
+  "uid": "ctrader-fix-gateway",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "FIX session up",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "fix_session_up", "legendFormat": "{{session_type}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Outbox pending",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [{ "expr": "outbox_pending", "legendFormat": "pending" }],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [
+        { "color": "green", "value": null },
+        { "color": "yellow", "value": 50 },
+        { "color": "red", "value": 100 }
+      ] } } }
+    },
+    {
+      "id": 3,
+      "title": "Queue depth",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [{ "expr": "queue_depth", "legendFormat": "{{queue}}" }]
+    },
+    {
+      "id": 4,
+      "title": "Orders sent / received / failed (rate, 5m)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "sum(rate(orders_sent_total[5m]))", "legendFormat": "sent" },
+        { "expr": "sum(rate(orders_received_total[5m]))", "legendFormat": "received" },
+        { "expr": "sum(rate(orders_failed_total[5m]))", "legendFormat": "failed" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Order latency, end_to_end (p50/p95/p99)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(order_latency_seconds_bucket{stage=\"end_to_end\"}[5m])) by (le))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(order_latency_seconds_bucket{stage=\"end_to_end\"}[5m])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(order_latency_seconds_bucket{stage=\"end_to_end\"}[5m])) by (le))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "FIX messages (rate, 5m) by direction",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        { "expr": "sum(rate(fix_messages_total[5m])) by (direction, msg_type)", "legendFormat": "{{direction}} {{msg_type}}" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "FIX reconnects (rate, 15m)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 20 },
+      "targets": [{ "expr": "sum(rate(fix_reconnects_total[15m])) by (session_type)", "legendFormat": "{{session_type}}" }]
+    },
+    {
+      "id": 8,
+      "title": "Quote staleness (max across symbols)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 20 },
+      "targets": [{ "expr": "max(quote_staleness_seconds)", "legendFormat": "max staleness" }],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [
+        { "color": "green", "value": null },
+        { "color": "red", "value": 30 }
+      ] } } }
+    },
+    {
+      "id": 9,
+      "title": "Dead-lettered messages (rate, 15m)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 20 },
+      "targets": [{ "expr": "sum(rate(messages_dead_lettered_total[15m])) by (queue)", "legendFormat": "{{queue}}" }]
+    },
+    {
+      "id": 10,
+      "title": "Protection failures (rate, 15m)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "targets": [{ "expr": "sum(rate(protection_failures_total[15m])) by (reason)", "legendFormat": "{{reason}}" }]
+    },
+    {
+      "id": 11,
+      "title": "Protection gap (p95, seconds)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(protection_gap_seconds_bucket[15m])) by (le, symbol))", "legendFormat": "{{symbol}}" }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "HTTP request duration (p95) by route",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, route))", "legendFormat": "{{route}}" }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Illegal order transitions (rate, 15m)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "targets": [
+        { "expr": "sum(rate(order_illegal_transition_total[15m])) by (from_status, to_status)", "legendFormat": "{{from_status}} -> {{to_status}}" }
+      ]
+    }
+  ]
+}
